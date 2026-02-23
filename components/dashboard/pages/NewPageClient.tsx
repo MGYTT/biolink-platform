@@ -164,10 +164,11 @@ export function NewPageClient({ userId, username, isPro }: NewPageClientProps) {
 
       toast.success('Strona utworzona! 🎉')
       router.push(`/dashboard/editor/${page.id}`)
-    } catch (err) {
-      console.error(err)
-      toast.error('Błąd tworzenia strony')
-    } finally {
+    } catch (err: unknown) {
+  const error = err as { message?: string; code?: string; details?: string }
+  console.error('Szczegóły błędu:', error)
+  toast.error(`Błąd: ${error?.message ?? 'Nieznany błąd'}`)
+} finally {
       setIsCreating(false)
     }
   }
