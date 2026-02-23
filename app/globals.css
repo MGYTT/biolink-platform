@@ -1,3 +1,99 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════
+   CSS VARIABLES — Light & Dark
+═══════════════════════════════════════ */
+:root {
+  --radius: 0.625rem;
+
+  --background:       oklch(1 0 0);
+  --foreground:       oklch(0.145 0 0);
+  --card:             oklch(1 0 0);
+  --card-foreground:  oklch(0.145 0 0);
+  --popover:          oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
+  --primary:            oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+
+  --secondary:            oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  --muted:            oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  --accent:            oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+
+  --destructive:            oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border:  oklch(0.922 0 0);
+  --input:   oklch(0.922 0 0);
+  --ring:    oklch(0.708 0 0);
+
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6   0.118 184.704);
+  --chart-3: oklch(0.398 0.07  227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  --sidebar:              oklch(0.985 0 0);
+  --sidebar-foreground:   oklch(0.145 0 0);
+  --sidebar-primary:      oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent:       oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border:       oklch(0.922 0 0);
+  --sidebar-ring:         oklch(0.708 0 0);
+}
+
+.dark {
+  --background:       oklch(0.145 0 0);
+  --foreground:       oklch(0.985 0 0);
+  --card:             oklch(0.205 0 0);
+  --card-foreground:  oklch(0.985 0 0);
+  --popover:          oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+
+  --primary:            oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+
+  --secondary:            oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --muted:            oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+
+  --accent:            oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+
+  --destructive:            oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border:  oklch(1 0 0 / 10%);
+  --input:   oklch(1 0 0 / 15%);
+  --ring:    oklch(0.556 0 0);
+
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17  162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+
+  --sidebar:              oklch(0.205 0 0);
+  --sidebar-foreground:   oklch(0.985 0 0);
+  --sidebar-primary:      oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent:       oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border:       oklch(1 0 0 / 10%);
+  --sidebar-ring:         oklch(0.439 0 0);
+}
+
 /* ═══════════════════════════════════════
    TAILWIND v4 — Theme token registration
 ═══════════════════════════════════════ */
@@ -46,4 +142,199 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+}
+
+/* ═══════════════════════════════════════
+   BASE STYLES
+═══════════════════════════════════════ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track  { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb  { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/40; }
+
+  /* Focus */
+  :focus-visible {
+    @apply outline-2 outline-ring outline-offset-2;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+/* ═══════════════════════════════════════
+   ANIMATIONS — Page Preview
+═══════════════════════════════════════ */
+@keyframes anim-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes anim-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes anim-slide-down {
+  from { opacity: 0; transform: translateY(-24px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+@keyframes anim-bounce-in {
+  0%   { opacity: 0; transform: scale(0.75);  }
+  55%  { opacity: 1; transform: scale(1.06);  }
+  75%  {             transform: scale(0.97);  }
+  100% {             transform: scale(1);     }
+}
+
+@keyframes anim-zoom-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+.anim-fade-in   { animation: anim-fade-in   0.45s ease both; }
+.anim-slide-up  { animation: anim-slide-up  0.45s ease both; }
+.anim-slide-down{ animation: anim-slide-down 0.45s ease both; }
+.anim-bounce-in { animation: anim-bounce-in 0.55s ease both; }
+.anim-zoom-in   { animation: anim-zoom-in   0.35s ease both; }
+
+/* ═══════════════════════════════════════
+   ANIMATIONS — UI
+═══════════════════════════════════════ */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-fade-up        { animation: fade-up        0.5s ease both; }
+.animate-fade-in        { animation: fade-in        0.4s ease both; }
+.animate-scale-in       { animation: scale-in       0.3s ease both; }
+.animate-slide-in-right { animation: slide-in-right 0.4s ease both; }
+
+/* Shimmer skeleton */
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    color-mix(in oklch, var(--muted-foreground) 15%, transparent) 50%,
+    var(--muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ═══════════════════════════════════════
+   LANDING PAGE — Hero gradient
+═══════════════════════════════════════ */
+.hero-gradient {
+  background: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    oklch(0.6 0.2 264 / 25%),
+    transparent
+  );
+}
+
+.hero-gradient-dark {
+  background: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    oklch(0.488 0.243 264 / 30%),
+    transparent
+  );
+}
+
+/* ═══════════════════════════════════════
+   EDITOR — Phone frame glow
+═══════════════════════════════════════ */
+.phone-glow {
+  box-shadow:
+    0 0 0 1px oklch(0.6 0.2 264 / 20%),
+    0 25px 60px -10px oklch(0.6 0.2 264 / 30%),
+    0 10px 30px -5px  oklch(0 0 0 / 40%);
+}
+
+/* ═══════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════ */
+.glass {
+  background:  oklch(1 0 0 / 8%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(1 0 0 / 15%);
+}
+
+.dark .glass {
+  background: oklch(0 0 0 / 20%);
+  border-color: oklch(1 0 0 / 10%);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-balance { text-wrap: balance; }
+
+/* ═══════════════════════════════════════
+   DRAG & DROP — sortable
+═══════════════════════════════════════ */
+.sortable-item {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.sortable-item-dragging {
+  @apply shadow-2xl ring-2 ring-primary/30 scale-[1.02] z-50;
+}
+
+/* ═══════════════════════════════════════
+   RECHARTS overrides
+═══════════════════════════════════════ */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--border) !important;
 }
