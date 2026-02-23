@@ -11,22 +11,17 @@ export default async function AnalyticsPage() {
     .eq('user_id', user!.id)
 
   const pageIds = (pages ?? []).map(p => p.id)
-
-  // Kliknięcia z ostatnich 30 dni
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  const { data: clicks } = await supabase
-    .from('clicks')
-    .select('clicked_at, device, country, page_id, block_id')
-    .in('page_id', pageIds)
-    .gte('clicked_at', thirtyDaysAgo.toISOString())
-    .order('clicked_at', { ascending: true })
+  const { data: clicks } = pageIds.length > 0
+    ? await supabase
+        .from('clicks')
+        .select('clicked_at, device, country, page_id, block_id')
+        .in('page_id', pageIds)
+        .gte('clicked_at', thirtyDaysAgo.toISOString())
+        .order('clicked_at', { ascending: true })
+    : { data: [] }
 
-  return (
-    <AnalyticsClient
-      pages={pages ?? []}
-      clicks={clicks ?? []}
-    />
-  )
+  return <AnalyticsClient pages={pages ?? []} clicks={clicks ?? []} />
 }

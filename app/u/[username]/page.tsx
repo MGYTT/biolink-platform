@@ -1,68 +1,66 @@
-import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { PagePreview } from '@/components/preview/PagePreview'
+import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 
-interface ProfilePageProps {
-  params: { username: string }
+interface Props {
+  params: Promise<{ username: string }>
 }
 
-// Dynamiczne meta tagi SEO per użytkownik
-export async function generateMetadata({ params }: ProfilePageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { username } = await params
   const supabase = await createClient()
 
-  const { data: page } = await supabase
-    .from('pages')
-    .select('title, seo_title, seo_desc, meta_image, slug')
-    .eq('slug', params.username)
-    .eq('is_published', true)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, bio, avatar_url')
+    .eq('username', username)
     .single()
 
-  if (!page) return { title: 'Nie znaleziono' }
+  if (!profile) return { title: 'Strona nie znaleziona' }
 
   return {
-    title: page.seo_title ?? page.title,
-    description: page.seo_desc ?? undefined,
+    title: profile.full_name ?? username,
+    description: profile.bio ?? `Strona ${username} na BioLink`,
     openGraph: {
-      title: page.seo_title ?? page.title,
-      description: page.seo_desc ?? undefined,
-      images: page.meta_image ? [page.meta_image] : [],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: page.seo_title ?? page.title,
+      images: profile.avatar_url ? [profile.avatar_url] : [],
     },
   }
 }
 
-export default async function ProfilePage({ params }: ProfilePageProps) {
+export default async function UserPage({ params }: Props) {
+  const { username } = await params
   const supabase = await createClient()
 
-  // Pobierz stronę po slug (= username)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('username', username)
+    .single()
+
+  if (!profile) notFound()
+
   const { data: page } = await supabase
     .from('pages')
     .select('*')
-    .eq('slug', params.username)
+    .eq('user_id', profile.id)
     .eq('is_published', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .single()
 
   if (!page) notFound()
 
-  // Pobierz bloki — widoczne i w kolejności
   const { data: blocks } = await supabase
     .from('blocks')
     .select('*')
     .eq('page_id', page.id)
-    .eq('is_visible', true)
+    .eq('is_active', true)
     .order('position', { ascending: true })
 
-  // Loguj wyświetlenie strony (page view)
-  await supabase.from('clicks').insert({
-    page_id: page.id,
-    block_id: null,
-    device: null,
-    referrer: null,
-  })
-
-  return <PagePreview page={page} blocks={blocks ?? []} />
+  return (
+    <div className="min-h-screen">
+      <PagePreview page={page} blocks={blocks ?? []} />
+    </div>
+  )
 }

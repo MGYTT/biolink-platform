@@ -1,34 +1,9 @@
 'use client'
 
-import { cn } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import type { Page, Theme, ButtonStyle } from '@/types'
-import { Lock } from 'lucide-react'
-
-const themes: { id: Theme; name: string; preview: string; pro?: boolean }[] = [
-  { id: 'minimal',       name: 'Minimal',       preview: 'bg-white border'                              },
-  { id: 'dark',          name: 'Dark',           preview: 'bg-gray-950'                                 },
-  { id: 'gradient',      name: 'Gradient',       preview: 'bg-gradient-to-br from-purple-500 to-orange-400' },
-  { id: 'glassmorphism', name: 'Glass',          preview: 'bg-gradient-to-br from-blue-400 to-purple-600', pro: true },
-  { id: 'neon',          name: 'Neon',           preview: 'bg-black border border-green-400',            pro: true },
-  { id: 'retro',         name: 'Retro',          preview: 'bg-yellow-100 border',                        pro: true },
-]
-
-const buttonStyles: { id: ButtonStyle; name: string; class: string }[] = [
-  { id: 'rounded', name: 'Rounded',  class: 'rounded-lg'  },
-  { id: 'pill',    name: 'Pill',     class: 'rounded-full'},
-  { id: 'square',  name: 'Square',   class: 'rounded-none'},
-  { id: 'outline', name: 'Outline',  class: 'rounded-lg border-2'},
-  { id: 'shadow',  name: 'Shadow',   class: 'rounded-lg shadow-xl'},
-]
-
-const fonts = [
-  { id: 'inter',  name: 'Inter (domyślny)' },
-  { id: 'serif',  name: 'Serif' },
-  { id: 'mono',   name: 'Monospace' },
-]
+import { cn } from '@/lib/utils'
+import type { Page, Theme, ButtonStyle, BgType } from '@/types'
 
 interface DesignPanelProps {
   page: Page
@@ -36,151 +11,197 @@ interface DesignPanelProps {
   isPro: boolean
 }
 
+const THEMES: { id: Theme; label: string; bg: string; border: string }[] = [
+  { id: 'default', label: 'Domyślny', bg: 'bg-white',     border: 'border-gray-200'   },
+  { id: 'dark',    label: 'Ciemny',   bg: 'bg-gray-900',  border: 'border-gray-700'   },
+  { id: 'purple',  label: 'Purple',   bg: 'bg-purple-600',border: 'border-purple-400' },
+  { id: 'ocean',   label: 'Ocean',    bg: 'bg-blue-600',  border: 'border-blue-400'   },
+  { id: 'sunset',  label: 'Sunset',   bg: 'bg-orange-500',border: 'border-orange-300' },
+  { id: 'forest',  label: 'Forest',   bg: 'bg-green-700', border: 'border-green-400'  },
+]
+
+const BUTTON_STYLES: { id: ButtonStyle; label: string; preview: string }[] = [
+  { id: 'rounded',     label: 'Zaokrąglone', preview: 'rounded-lg'   },
+  { id: 'pill',        label: 'Pill',         preview: 'rounded-full' },
+  { id: 'square',      label: 'Kwadratowe',   preview: 'rounded-none' },
+  { id: 'outline',     label: 'Outline',      preview: 'rounded-lg'   },
+  { id: 'soft-shadow', label: 'Shadow',       preview: 'rounded-lg'   },
+]
+
+const FONTS = [
+  { id: 'inter',    label: 'Inter',    style: 'font-sans'  },
+  { id: 'serif',    label: 'Serif',    style: 'font-serif' },
+  { id: 'mono',     label: 'Mono',     style: 'font-mono'  },
+  { id: 'poppins',  label: 'Poppins',  style: 'font-sans'  },
+  { id: 'playfair', label: 'Playfair', style: 'font-serif' },
+]
+
+const BG_TYPES: { id: BgType; label: string; pro?: boolean }[] = [
+  { id: 'solid',    label: 'Jednolity'             },
+  { id: 'gradient', label: 'Gradient', pro: true   },
+  { id: 'image',    label: 'Obraz',    pro: true   },
+]
+
 export function DesignPanel({ page, onUpdate, isPro }: DesignPanelProps) {
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-6">
 
-      {/* Motywy */}
-      <div>
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
-          Motyw
+      {/* Motyw */}
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
+          Motyw kolorystyczny
         </Label>
         <div className="grid grid-cols-3 gap-2">
-          {themes.map(theme => {
-            const locked = theme.pro && !isPro
-            return (
-              <button
-                key={theme.id}
-                onClick={() => !locked && onUpdate({ theme: theme.id })}
-                className={cn(
-                  'relative flex flex-col items-center gap-1.5 p-2 rounded-lg border-2 transition-all',
-                  page.theme === theme.id
-                    ? 'border-primary shadow-sm'
-                    : 'border-transparent hover:border-muted-foreground/30',
-                  locked && 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                <div className={cn('w-full h-10 rounded-md', theme.preview)} />
-                <span className="text-[10px] font-medium">{theme.name}</span>
-                {theme.pro && (
-                  <Badge className={cn(
-                    'absolute top-1 right-1 text-[8px] px-1 py-0 h-3.5',
-                    isPro ? 'bg-amber-500' : 'bg-muted text-muted-foreground'
-                  )}>
-                    {locked ? <Lock className="h-2 w-2" /> : 'PRO'}
-                  </Badge>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Kolor tła */}
-      <div>
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
-          Kolor tła
-        </Label>
-        <div className="flex items-center gap-3">
-          <input
-            type="color"
-            value={page.bg_color}
-            onChange={e => onUpdate({ bg_color: e.target.value })}
-            className="h-10 w-16 rounded-lg border cursor-pointer p-0.5"
-          />
-          <Input
-            value={page.bg_color}
-            onChange={e => onUpdate({ bg_color: e.target.value })}
-            className="h-9 font-mono text-sm"
-            maxLength={7}
-          />
-        </div>
-      </div>
-
-      {/* Kolor tekstu */}
-      <div>
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
-          Kolor tekstu
-        </Label>
-        <div className="flex items-center gap-3">
-          <input
-            type="color"
-            value={page.text_color}
-            onChange={e => onUpdate({ text_color: e.target.value })}
-            className="h-10 w-16 rounded-lg border cursor-pointer p-0.5"
-          />
-          <Input
-            value={page.text_color}
-            onChange={e => onUpdate({ text_color: e.target.value })}
-            className="h-9 font-mono text-sm"
-            maxLength={7}
-          />
+          {THEMES.map(theme => (
+            <button
+              key={theme.id}
+              onClick={() => onUpdate({ theme: theme.id })}
+              className={cn(
+                'flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all',
+                page.theme === theme.id
+                  ? 'border-primary ring-2 ring-primary/20'
+                  : 'border-border hover:border-muted-foreground/30'
+              )}
+            >
+              <div className={cn('w-full h-8 rounded-lg border', theme.bg, theme.border)} />
+              <span className="text-[10px] font-medium">{theme.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Styl przycisków */}
-      <div>
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
           Styl przycisków
         </Label>
-        <div className="grid grid-cols-5 gap-1.5">
-          {buttonStyles.map(style => (
+        <div className="grid grid-cols-1 gap-2">
+          {BUTTON_STYLES.map(style => (
             <button
               key={style.id}
               onClick={() => onUpdate({ button_style: style.id })}
               className={cn(
-                'py-2 px-1 text-[10px] font-medium border-2 transition-all bg-primary/80 text-primary-foreground',
-                style.class,
+                'flex items-center gap-3 p-2.5 rounded-xl border-2 transition-all text-left',
                 page.button_style === style.id
-                  ? 'border-primary scale-105'
-                  : 'border-transparent opacity-60 hover:opacity-100'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-muted-foreground/30'
               )}
             >
-              {style.name}
+              <div className={cn(
+                'h-7 w-20 bg-primary/80 flex-shrink-0',
+                style.preview,
+                style.id === 'outline'     && 'bg-transparent border-2 border-primary',
+                style.id === 'soft-shadow' && 'shadow-md'
+              )} />
+              <span className="text-xs font-medium">{style.label}</span>
+              {page.button_style === style.id && (
+                <div className="ml-auto w-2 h-2 rounded-full bg-primary" />
+              )}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Font */}
-      <div>
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
+      {/* Czcionka */}
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
           Czcionka
         </Label>
-        <div className="flex flex-col gap-1.5">
-          {fonts.map(font => (
+        <div className="grid grid-cols-1 gap-2">
+          {FONTS.map(font => (
             <button
               key={font.id}
-              onClick={() => onUpdate({ font_family: font.id })}
+              onClick={() => onUpdate({ font_family: font.id as Page['font_family'] })}
               className={cn(
-                'flex items-center p-2.5 rounded-lg border-2 text-sm transition-all text-left',
-                font.id === 'serif' ? 'font-serif' : font.id === 'mono' ? 'font-mono' : 'font-sans',
+                'flex items-center justify-between px-3 py-2.5 rounded-xl border-2 transition-all',
                 page.font_family === font.id
                   ? 'border-primary bg-primary/5'
-                  : 'border-transparent hover:border-muted-foreground/20'
+                  : 'border-border hover:border-muted-foreground/30'
               )}
             >
-              {font.name}
+              <span className={cn('text-sm font-medium', font.style)}>{font.label}</span>
+              <span className={cn('text-xs text-muted-foreground', font.style)}>Aa</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Gradient tła (PRO) */}
-      <div className={cn(!isPro && 'opacity-60')}>
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
-          Gradient tła
-          {!isPro && <Badge className="text-[9px] px-1 bg-amber-500 h-3.5">PRO</Badge>}
+      {/* Typ tła */}
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
+          Typ tła
         </Label>
-        <p className="text-[10px] text-muted-foreground mb-2">CSS gradient, np. linear-gradient(...)</p>
-        <Input
-          value={page.bg_gradient ?? ''}
-          onChange={e => isPro && onUpdate({ bg_gradient: e.target.value || null })}
-          placeholder="linear-gradient(135deg, #667eea, #764ba2)"
-          className="h-9 text-xs font-mono"
-          disabled={!isPro}
-        />
+        <div className="grid grid-cols-3 gap-2">
+          {BG_TYPES.map(bg => (
+            <button
+              key={bg.id}
+              onClick={() => {
+                if (bg.pro && !isPro) return
+                onUpdate({ bg_type: bg.id })
+              }}
+              disabled={bg.pro && !isPro}
+              className={cn(
+                'relative flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all',
+                page.bg_type === bg.id
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-muted-foreground/30',
+                bg.pro && !isPro && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <span className="text-xs font-medium">{bg.label}</span>
+              {bg.pro && !isPro && (
+                <Badge className="absolute -top-2 -right-2 text-[8px] px-1 h-3.5 bg-amber-500">
+                  PRO
+                </Badge>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Kolor tła */}
+      {(!page.bg_type || page.bg_type === 'solid') && (
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
+            Kolor tła
+          </Label>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={page.bg_color ?? '#ffffff'}
+              onChange={e => onUpdate({ bg_color: e.target.value })}
+              className="w-10 h-10 rounded-lg border cursor-pointer"
+            />
+            <span className="text-sm font-mono text-muted-foreground">
+              {page.bg_color ?? '#ffffff'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Gradient */}
+      {page.bg_type === 'gradient' && isPro && (
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
+            Kolory gradientu
+          </Label>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={page.gradient_from ?? '#6366f1'}
+              onChange={e => onUpdate({ gradient_from: e.target.value })}
+              className="w-10 h-10 rounded-lg border cursor-pointer"
+            />
+            <span className="text-xs text-muted-foreground">→</span>
+            <input
+              type="color"
+              value={page.gradient_to ?? '#8b5cf6'}
+              onChange={e => onUpdate({ gradient_to: e.target.value })}
+              className="w-10 h-10 rounded-lg border cursor-pointer"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

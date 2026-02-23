@@ -3,11 +3,26 @@ import { stripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 import type Stripe from 'stripe'
 
-// Supabase Admin client (service role) — omija RLS
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+// ✅ Pomocnik — pobiera daty z items.data[0] (nowe API Stripe)
+function getPeriodDates(subscription: Stripe.Subscription) {
+  const item = subscription.items.data[0]
+  return {
+    current_period_start: item?.current_period_start
+      ? new Date(item.current_period_start * 1000).toISOString()
+      : null,
+    current_period_end: item?.current_period_end
+      ? new Date(item.current_period_end * 1000).toISOString()
+      : null,
+  }
+}
+
+const getUserId = (metadata: Stripe.Metadata) =>
+  metadata?.supabase_user_id ?? null
 
 export async function POST(request: NextRequest) {
   const body      = await request.text()
@@ -25,12 +40,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  const getUserId = (metadata: Stripe.Metadata) =>
-    metadata?.supabase_user_id ?? null
-
   switch (event.type) {
 
-    // ✅ Płatność zakończona sukcesem
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
       if (session.mode !== 'subscription') break
@@ -41,14 +52,16 @@ export async function POST(request: NextRequest) {
       const userId = getUserId(subscription.metadata)
       if (!userId) break
 
+      const { current_period_start, current_period_end } = getPeriodDates(subscription)
+
       await supabaseAdmin.from('subscriptions').upsert({
         user_id:                userId,
         stripe_customer_id:     session.customer as string,
         stripe_subscription_id: subscription.id,
         plan:                   'pro',
         status:                 subscription.status,
-        current_period_start:   new Date(subscription.current_period_start * 1000).toISOString(),
-        current_period_end:     new Date(subscription.current_period_end   * 1000).toISOString(),
+        current_period_start,
+        current_period_end,
       })
 
       await supabaseAdmin
@@ -59,19 +72,19 @@ export async function POST(request: NextRequest) {
       break
     }
 
-    // 🔄 Subskrypcja zaktualizowana (odnowienie, zmiana planu)
     case 'customer.subscription.updated': {
       const subscription = event.data.object as Stripe.Subscription
       const userId = getUserId(subscription.metadata)
       if (!userId) break
 
       const isActive = ['active', 'trialing'].includes(subscription.status)
+      const { current_period_start, current_period_end } = getPeriodDates(subscription)
 
       await supabaseAdmin.from('subscriptions').update({
-        plan:                   isActive ? 'pro' : 'free',
-        status:                 subscription.status,
-        current_period_start:   new Date(subscription.current_period_start * 1000).toISOString(),
-        current_period_end:     new Date(subscription.current_period_end   * 1000).toISOString(),
+        plan:   isActive ? 'pro' : 'free',
+        status: subscription.status,
+        current_period_start,
+        current_period_end,
       }).eq('stripe_subscription_id', subscription.id)
 
       await supabaseAdmin
@@ -82,7 +95,6 @@ export async function POST(request: NextRequest) {
       break
     }
 
-    // ❌ Subskrypcja anulowana
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription
       const userId = getUserId(subscription.metadata)
