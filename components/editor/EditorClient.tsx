@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -9,6 +9,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -21,24 +23,83 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { createClient } from '@/lib/supabase/client'
 import type { Block, Page } from '@/types'
 
-import { EditorToolbar }  from './EditorToolbar'
-import { BlockList }      from './BlockList'
-import { AddBlockMenu }   from './AddBlockMenu'
-import { PageSettings }   from './PageSettings'
-import { DesignPanel }    from './DesignPanel'
-import { PagePreview }    from '../preview/PagePreview'
+import { EditorToolbar } from './EditorToolbar'
+import { BlockList }     from './BlockList'
+import { BlockItem }     from './BlockItem'
+import { AddBlockMenu }  from './AddBlockMenu'
+import { PageSettings }  from './PageSettings'
+import { DesignPanel }   from './DesignPanel'
+import { PagePreview }   from '../preview/PagePreview'
 
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
 import { Layers, Palette, Settings } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
+/* ─────────────────────────────────────────
+   Constants
+───────────────────────────────────────── */
+const PAGE_FIELDS_TO_SAVE = [
+  'title', 'description', 'profile_pic', 'is_published',
+  'theme', 'button_style', 'font_family',
+  'bg_type', 'bg_color', 'bg_gradient', 'gradient_from', 'gradient_to',
+  'text_color', 'button_color', 'button_text_color', 'block_animation',
+  'custom_css', 'seo_title', 'seo_desc', 'meta_image',
+] as const satisfies ReadonlyArray<keyof Page>
+
+const BLOCK_FIELDS_TO_SAVE = [
+  'title', 'label', 'url', 'content', 'image_url', 'icon',
+  'thumbnail', 'is_active', 'is_visible', 'position',
+  'settings', 'visible_from', 'visible_to',
+  'schedule_start', 'schedule_end',
+] as const satisfies ReadonlyArray<keyof Block>
+
+/* ─────────────────────────────────────────
+   Helpers
+───────────────────────────────────────── */
+function pickFields<T extends object>(
+  obj: T,
+  fields: ReadonlyArray<keyof T>,
+): Partial<T> {
+  return Object.fromEntries(
+    fields.map(k => [k, obj[k]])
+  ) as Partial<T>
+}
+
+/* ─────────────────────────────────────────
+   Empty state
+───────────────────────────────────────── */
+function EmptyBlocks() {
+  return (
+    <div className="flex flex-col items-center justify-center py-14 px-4 text-center gap-3">
+      <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
+        <Layers className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <div>
+        <p className="text-sm font-medium">Brak bloków</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Kliknij „Dodaj blok" powyżej, aby zacząć
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────
+   Types
+───────────────────────────────────────── */
 interface EditorClientProps {
   initialPage:   Page
   initialBlocks: Block[]
   isPro:         boolean
 }
 
+type ActiveTab = 'blocks' | 'design' | 'settings'
+
+/* ─────────────────────────────────────────
+   Main component
+───────────────────────────────────────── */
 export function EditorClient({
   initialPage,
   initialBlocks,
@@ -46,123 +107,141 @@ export function EditorClient({
 }: EditorClientProps) {
   const supabase = createClient()
 
-  const [pageData,       setPageData]       = useState<Page>(initialPage)
-  const [blocks,         setBlocks]         = useState<Block[]>(initialBlocks)
-  const [selectedId,     setSelectedId]     = useState<string | null>(null)
-  const [activeTab,      setActiveTab]      = useState<'blocks' | 'design' | 'settings'>('blocks')
-  const [isSaving,       setIsSaving]       = useState(false)
-  const [hasChanges,     setHasChanges]     = useState(false)
+  /* ── State ── */
+  const [pageData,   setPageData]   = useState<Page>(initialPage)
+  const [blocks,     setBlocks]     = useState<Block[]>(initialBlocks)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [activeTab,  setActiveTab]  = useState<ActiveTab>('blocks')
+  const [isSaving,   setIsSaving]   = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
 
-  // Śledź zmiany
-  useEffect(() => { setHasChanges(true) }, [pageData, blocks])
-  useEffect(() => { setHasChanges(false) }, [])
+  /* ── Track changes (skip initial mount) ── */
+  const isMounted = useRef(false)
+  useEffect(() => {
+    if (!isMounted.current) { isMounted.current = true; return }
+    setHasChanges(true)
+  }, [pageData, blocks])
 
-  // DnD sensors
+  /* ── Warn before unload with unsaved changes ── */
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!hasChanges) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasChanges])
+
+  /* ── DnD sensors ── */
   const sensors = useSensors(
     useSensor(PointerSensor,  { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  // Zapisz stronę + bloki
+  /* ── Sorted blocks (memoised) ── */
+  const sortedBlocks = useMemo(
+    () => [...blocks].sort((a, b) => a.position - b.position),
+    [blocks],
+  )
+
+  const draggingBlock = useMemo(
+    () => draggingId ? blocks.find(b => b.id === draggingId) ?? null : null,
+    [draggingId, blocks],
+  )
+
+  /* ─────────────────────────────────────
+     Handlers
+  ───────────────────────────────────── */
+
+  /* Save page + blocks */
   const handleSave = useCallback(async () => {
     setIsSaving(true)
     try {
       const { error: pageError } = await supabase
         .from('pages')
         .update({
-          title:        pageData.title,
-          description:  pageData.description,
-          profile_pic:  pageData.profile_pic,
-          is_published: pageData.is_published,
-          theme:        pageData.theme,
-          button_style: pageData.button_style,
-          font_family:  pageData.font_family,
-          bg_type:      pageData.bg_type,
-          bg_color:     pageData.bg_color,
-          bg_gradient:  pageData.bg_gradient,
-          gradient_from: pageData.gradient_from,
-          gradient_to:  pageData.gradient_to,
-          text_color:   pageData.text_color,
-          seo_title:    pageData.seo_title,
-          seo_desc:     pageData.seo_desc,
-          meta_image:   pageData.meta_image,
-          updated_at:   new Date().toISOString(),
+          ...pickFields(pageData, PAGE_FIELDS_TO_SAVE),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', pageData.id)
 
       if (pageError) throw pageError
 
-      // Zapisz pozycje bloków
-      for (const block of blocks) {
-        await supabase
+      /* Batch-update blocks in parallel */
+      const blockUpdates = blocks.map(block =>
+        supabase
           .from('blocks')
           .update({
-            title:         block.title,
-            label:         block.label,
-            url:           block.url,
-            content:       block.content,
-            image_url:     block.image_url,
-            icon:          block.icon,
-            is_active:     block.is_active,
-            is_visible:    block.is_visible,
-            position:      block.position,
-            settings:      block.settings,
-            visible_from:  block.visible_from,
-            visible_to:    block.visible_to,
-            updated_at:    new Date().toISOString(),
+            ...pickFields(block, BLOCK_FIELDS_TO_SAVE),
+            updated_at: new Date().toISOString(),
           })
           .eq('id', block.id)
-      }
+      )
+
+      const results = await Promise.all(blockUpdates)
+      const blockError = results.find(r => r.error)?.error
+      if (blockError) throw blockError
 
       setHasChanges(false)
-      toast.success('Zapisano!')
+      toast.success('Zapisano!', { description: 'Wszystkie zmiany zostały zapisane.' })
     } catch (err) {
-      console.error(err)
-      toast.error('Błąd zapisu')
+      console.error('[EditorClient] save error:', err)
+      toast.error('Błąd zapisu', {
+        description: 'Sprawdź połączenie z internetem i spróbuj ponownie.',
+      })
     } finally {
       setIsSaving(false)
     }
   }, [pageData, blocks, supabase])
 
-  // Publikuj / ukryj
+  /* Toggle publish with optimistic update */
   const handleTogglePublish = useCallback(async () => {
     const next = !pageData.is_published
     setPageData(p => ({ ...p, is_published: next }))
 
     const { error } = await supabase
       .from('pages')
-      .update({ is_published: next })
+      .update({ is_published: next, updated_at: new Date().toISOString() })
       .eq('id', pageData.id)
 
     if (error) {
       setPageData(p => ({ ...p, is_published: !next }))
       toast.error('Błąd zmiany statusu')
     } else {
-      toast.success(next ? 'Strona opublikowana!' : 'Strona ukryta')
+      toast.success(next ? '🌐 Strona opublikowana!' : 'Strona ukryta', {
+        description: next
+          ? `Dostępna pod biolink.app/@${pageData.slug}`
+          : 'Nikt nie może jej teraz zobaczyć.',
+      })
     }
-  }, [pageData.id, pageData.is_published, supabase])
+  }, [pageData.id, pageData.is_published, pageData.slug, supabase])
 
-  // Dodaj blok
+  /* Add block */
   const handleAddBlock = useCallback(async (type: Block['type']) => {
     const position = blocks.length
 
     const { data, error } = await supabase
       .from('blocks')
       .insert({
-        page_id:    pageData.id,
+        page_id:      pageData.id,
         type,
-        title:      null,
-        label:      null,
-        url:        null,
-        content:    null,
-        image_url:  null,
-        icon:       null,
-        is_active:  true,
-        is_visible: true,
+        title:        null,
+        label:        null,
+        url:          null,
+        content:      null,
+        image_url:    null,
+        icon:         null,
+        thumbnail:    null,
+        is_active:    true,
+        is_visible:   true,
         position,
-        settings:   null,
+        settings:     null,
         visible_from: null,
         visible_to:   null,
+        schedule_start: null,
+        schedule_end:   null,
       })
       .select()
       .single()
@@ -174,17 +253,19 @@ export function EditorClient({
 
     setBlocks(prev => [...prev, data as Block])
     setSelectedId(data.id)
-    toast.success('Blok dodany')
-  }, [blocks.length, pageData.id, supabase])
 
-  // Aktualizuj blok
+    /* Auto-switch to blocks tab */
+    if (activeTab !== 'blocks') setActiveTab('blocks')
+
+    toast.success('Blok dodany')
+  }, [blocks.length, pageData.id, activeTab, supabase])
+
+  /* Update block (local only — saved with handleSave) */
   const handleUpdateBlock = useCallback((id: string, updates: Partial<Block>) => {
-    setBlocks(prev =>
-      prev.map(b => b.id === id ? { ...b, ...updates } : b)
-    )
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b))
   }, [])
 
-  // Usuń blok
+  /* Delete block */
   const handleDeleteBlock = useCallback(async (id: string) => {
     const { error } = await supabase
       .from('blocks')
@@ -205,24 +286,36 @@ export function EditorClient({
     toast.success('Blok usunięty')
   }, [selectedId, supabase])
 
-  // Drag & drop
+  /* Update page fields */
+  const handleUpdatePage = useCallback((updates: Partial<Page>) => {
+    setPageData(p => ({ ...p, ...updates }))
+  }, [])
+
+  /* Drag start */
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setDraggingId(event.active.id as string)
+  }, [])
+
+  /* Drag end */
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setDraggingId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
 
     setBlocks(prev => {
       const oldIndex = prev.findIndex(b => b.id === active.id)
       const newIndex = prev.findIndex(b => b.id === over.id)
-      const reordered = arrayMove(prev, oldIndex, newIndex)
-      return reordered.map((b, i) => ({ ...b, position: i }))
+      return arrayMove(prev, oldIndex, newIndex).map((b, i) => ({ ...b, position: i }))
     })
   }, [])
 
-  const sortedBlocks = [...blocks].sort((a, b) => a.position - b.position)
-
+  /* ─────────────────────────────────────
+     Render
+  ───────────────────────────────────── */
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
-      {/* Toolbar */}
+
+      {/* ── Toolbar ── */}
       <EditorToolbar
         page={pageData}
         isSaving={isSaving}
@@ -232,15 +325,18 @@ export function EditorClient({
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* ====== PANEL LEWY ====== */}
-        <div className="w-80 flex-shrink-0 border-r flex flex-col bg-background overflow-hidden">
+
+        {/* ════════════════════════════
+            LEFT PANEL
+        ════════════════════════════ */}
+        <aside className="w-80 flex-shrink-0 border-r flex flex-col bg-background overflow-hidden">
           <Tabs
             value={activeTab}
-            onValueChange={v => setActiveTab(v as typeof activeTab)}
+            onValueChange={v => setActiveTab(v as ActiveTab)}
             className="flex flex-col h-full"
           >
-            {/* Zakładki */}
-            <TabsList className="grid grid-cols-3 mx-3 mt-3 flex-shrink-0">
+            {/* Tab triggers */}
+            <TabsList className="grid grid-cols-3 mx-3 mt-3 mb-0 flex-shrink-0">
               <TabsTrigger value="blocks" className="flex items-center gap-1.5 text-xs">
                 <Layers className="h-3.5 w-3.5" />
                 Bloki
@@ -255,95 +351,127 @@ export function EditorClient({
               </TabsTrigger>
             </TabsList>
 
-            {/* Zakładka: Bloki */}
-            {activeTab === 'blocks' && (
-              <div className="flex flex-col flex-1 overflow-hidden">
-                {/* Dodaj blok */}
-                <div className="px-3 pt-3 pb-2 flex-shrink-0">
-                  <AddBlockMenu onAdd={handleAddBlock} isPro={isPro} />
-                </div>
-
-                {/* Lista bloków */}
-                <ScrollArea className="flex-1">
-                  <div className="px-3 pb-4">
-                    {sortedBlocks.length === 0 ? (
-                      <div className="text-center py-12">
-                        <p className="text-sm text-muted-foreground">
-                          Brak bloków — dodaj pierwszy! ↑
-                        </p>
-                      </div>
-                    ) : (
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        modifiers={[restrictToVerticalAxis]}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <SortableContext
-                          items={sortedBlocks.map(b => b.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <BlockList
-                            blocks={sortedBlocks}
-                            selectedBlockId={selectedId}
-                            onSelect={setSelectedId}
-                            onUpdate={handleUpdateBlock}
-                            onDelete={handleDeleteBlock}
-                            isPro={isPro}
-                          />
-                        </SortableContext>
-                      </DndContext>
-                    )}
-                  </div>
-                </ScrollArea>
+            {/* ── Blocks tab ── */}
+            <TabsContent
+              value="blocks"
+              className="flex flex-col flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden"
+              forceMount
+            >
+              <div className="px-3 pt-3 pb-2 flex-shrink-0">
+                <AddBlockMenu onAdd={handleAddBlock} isPro={isPro} />
               </div>
-            )}
 
-            {/* Zakładka: Wygląd */}
-            {activeTab === 'design' && (
+              <ScrollArea className="flex-1">
+                <div className="px-3 pb-4">
+                  {sortedBlocks.length === 0 ? (
+                    <EmptyBlocks />
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      modifiers={[restrictToVerticalAxis]}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={sortedBlocks.map(b => b.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <BlockList
+                          blocks={sortedBlocks}
+                          selectedBlockId={selectedId}
+                          onSelect={setSelectedId}
+                          onUpdate={handleUpdateBlock}
+                          onDelete={handleDeleteBlock}
+                          isPro={isPro}
+                        />
+                      </SortableContext>
+
+                      {/* Drag overlay — ghost item while dragging */}
+                      <DragOverlay>
+                        {draggingBlock && (
+                          <div className="opacity-90 rotate-1 shadow-2xl rounded-lg">
+                            <BlockItem
+                              block={draggingBlock}
+                              isSelected={false}
+                              onSelect={() => {}}
+                              onUpdate={() => {}}
+                              onDelete={() => {}}
+                              isPro={isPro}
+                            />
+                          </div>
+                        )}
+                      </DragOverlay>
+                    </DndContext>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Design tab ── */}
+            <TabsContent
+              value="design"
+              className="flex flex-col flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden"
+              forceMount
+            >
               <DesignPanel
                 page={pageData}
-                onUpdate={(updates: Partial<Page>) => {
-                  setPageData(p => ({ ...p, ...updates }))
-                  setHasChanges(true)
-                }}
+                onUpdate={handleUpdatePage}
                 isPro={isPro}
               />
-            )}
+            </TabsContent>
 
-            {/* Zakładka: Ustawienia */}
-            {activeTab === 'settings' && (
+            {/* ── Settings tab ── */}
+            <TabsContent
+              value="settings"
+              className="flex flex-col flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden"
+              forceMount
+            >
               <PageSettings
                 page={pageData}
-                onUpdate={(updates: Partial<Page>) => {
-                  setPageData(p => ({ ...p, ...updates }))
-                  setHasChanges(true)
-                }}
+                onUpdate={handleUpdatePage}
                 isPro={isPro}
               />
-            )}
+            </TabsContent>
           </Tabs>
-        </div>
+        </aside>
 
-        {/* ====== PODGLĄD ŚRODKOWY ====== */}
-        <div className="flex-1 bg-muted/30 flex items-center justify-center overflow-hidden p-6">
-          {/* Ramka telefonu */}
+        {/* ════════════════════════════
+            CENTER PREVIEW
+        ════════════════════════════ */}
+        <main className="flex-1 bg-muted/30 flex items-center justify-center overflow-hidden p-6">
           <div className="relative h-full max-h-[780px] aspect-[9/19.5]">
-            {/* Glow */}
-            <div className="absolute inset-0 bg-gradient-to-b from-primary/20 to-purple-500/20 rounded-[40px] blur-2xl scale-105 pointer-events-none" />
 
-            {/* Telefon */}
-            <div className="relative w-full h-full rounded-[40px] border-[6px] border-neutral-800 bg-background shadow-2xl overflow-hidden flex flex-col">
+            {/* Ambient glow */}
+            <div
+              className="absolute inset-0 rounded-[40px] blur-3xl scale-110 pointer-events-none opacity-60"
+              style={{
+                background: pageData.bg_gradient
+                  ?? pageData.bg_color
+                  ?? 'linear-gradient(to bottom, var(--color-primary), oklch(0.627 0.265 303.9))',
+                opacity: 0.25,
+              }}
+            />
+
+            {/* Phone shell */}
+            <div className={cn(
+              'phone-glow relative w-full h-full rounded-[40px]',
+              'border-[6px] border-neutral-800 bg-background',
+              'shadow-2xl overflow-hidden flex flex-col',
+            )}>
               {/* Notch */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-4 bg-neutral-800 rounded-full z-10 flex-shrink-0" />
 
-              {/* Preview */}
-              <div className="flex-1 overflow-hidden mt-6">
+              {/* Home indicator */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-24 h-1 bg-neutral-700 rounded-full z-10" />
+
+              {/* Page preview */}
+              <div className="flex-1 overflow-hidden mt-6 mb-4">
                 <PagePreview page={pageData} blocks={sortedBlocks} />
               </div>
             </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   )

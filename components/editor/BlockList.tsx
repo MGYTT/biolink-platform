@@ -1,18 +1,19 @@
 'use client'
 
+import { memo } from 'react'
 import { BlockItem } from './BlockItem'
 import type { Block } from '@/types'
 
 interface BlockListProps {
-  blocks: Block[]
+  blocks:          Block[]        // przekazywać już posortowane (z EditorClient)
   selectedBlockId: string | null
-  onSelect: (id: string) => void
-  onUpdate: (id: string, updates: Partial<Block>) => void
-  onDelete: (id: string) => void
-  isPro: boolean
+  onSelect:        (id: string) => void
+  onUpdate:        (id: string, updates: Partial<Block>) => void
+  onDelete:        (id: string) => void
+  isPro:           boolean
 }
 
-export function BlockList({
+export const BlockList = memo(function BlockList({
   blocks,
   selectedBlockId,
   onSelect,
@@ -21,21 +22,18 @@ export function BlockList({
   isPro,
 }: BlockListProps) {
   return (
-    <div className="space-y-1">
-      {blocks
-        .slice()
-        .sort((a, b) => a.position - b.position)
-        .map(block => (
-          <BlockItem
-            key={block.id}
-            block={block}
-            isSelected={selectedBlockId === block.id}
-            onSelect={onSelect}
-            onUpdate={onUpdate}
-            onDelete={onDelete}
-            isPro={isPro}
-          />
-        ))}
+    <div className="space-y-1" role="list" aria-label="Lista bloków">
+      {blocks.map(block => (
+        <BlockItem
+          key={block.id}
+          block={block}
+          isSelected={selectedBlockId === block.id}
+          onSelect={onSelect}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          isPro={isPro}
+        />
+      ))}
     </div>
   )
-}
+})
