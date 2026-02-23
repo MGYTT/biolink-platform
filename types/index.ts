@@ -2,6 +2,7 @@ export type Theme = 'default' | 'dark' | 'purple' | 'ocean' | 'sunset' | 'forest
 export type ButtonStyle = 'rounded' | 'pill' | 'square' | 'outline' | 'soft-shadow'
 export type BgType = 'solid' | 'gradient' | 'image'
 export type FontFamily = 'inter' | 'serif' | 'mono' | 'poppins' | 'playfair'
+export type AnimationStyle = 'none' | 'fade' | 'slide-up' | 'slide-down' | 'bounce' | 'zoom'
 
 export type BlockType =
   | 'link'
@@ -65,6 +66,11 @@ export interface Page {
   seo_desc: string | null
   created_at: string
   updated_at: string
+  custom_css:       string | null
+  block_animation:  AnimationStyle
+  button_color:     string | null
+  button_text_color: string | null
+  font_url:         string | null
 }
 
 export interface Profile {

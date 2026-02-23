@@ -1,23 +1,32 @@
 'use client'
 
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { Label }     from '@/components/ui/label'
+import { Badge }     from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { cn }        from '@/lib/utils'
+import { Sparkles }  from 'lucide-react'
+
+import { ColorPicker }     from './pro/ColorPicker'
+import { GradientBuilder } from './pro/GradientBuilder'
+import { FontPicker }      from './pro/FontPicker'
+import { AnimationPicker } from './pro/AnimationPicker'
+import { CustomCssEditor } from './pro/CustomCssEditor'
+
 import type { Page, Theme, ButtonStyle, BgType } from '@/types'
 
 interface DesignPanelProps {
-  page: Page
+  page:     Page
   onUpdate: (updates: Partial<Page>) => void
-  isPro: boolean
+  isPro:    boolean
 }
 
 const THEMES: { id: Theme; label: string; bg: string; border: string }[] = [
-  { id: 'default', label: 'Domyślny', bg: 'bg-white',     border: 'border-gray-200'   },
-  { id: 'dark',    label: 'Ciemny',   bg: 'bg-gray-900',  border: 'border-gray-700'   },
-  { id: 'purple',  label: 'Purple',   bg: 'bg-purple-600',border: 'border-purple-400' },
-  { id: 'ocean',   label: 'Ocean',    bg: 'bg-blue-600',  border: 'border-blue-400'   },
-  { id: 'sunset',  label: 'Sunset',   bg: 'bg-orange-500',border: 'border-orange-300' },
-  { id: 'forest',  label: 'Forest',   bg: 'bg-green-700', border: 'border-green-400'  },
+  { id: 'default', label: 'Domyślny', bg: 'bg-white',      border: 'border-gray-200'   },
+  { id: 'dark',    label: 'Ciemny',   bg: 'bg-gray-900',   border: 'border-gray-700'   },
+  { id: 'purple',  label: 'Purple',   bg: 'bg-purple-600', border: 'border-purple-400' },
+  { id: 'ocean',   label: 'Ocean',    bg: 'bg-blue-600',   border: 'border-blue-400'   },
+  { id: 'sunset',  label: 'Sunset',   bg: 'bg-orange-500', border: 'border-orange-300' },
+  { id: 'forest',  label: 'Forest',   bg: 'bg-green-700',  border: 'border-green-400'  },
 ]
 
 const BUTTON_STYLES: { id: ButtonStyle; label: string; preview: string }[] = [
@@ -37,16 +46,16 @@ const FONTS = [
 ]
 
 const BG_TYPES: { id: BgType; label: string; pro?: boolean }[] = [
-  { id: 'solid',    label: 'Jednolity'             },
-  { id: 'gradient', label: 'Gradient', pro: true   },
-  { id: 'image',    label: 'Obraz',    pro: true   },
+  { id: 'solid',    label: 'Jednolity'           },
+  { id: 'gradient', label: 'Gradient', pro: true },
+  { id: 'image',    label: 'Obraz',    pro: true },
 ]
 
 export function DesignPanel({ page, onUpdate, isPro }: DesignPanelProps) {
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-6">
 
-      {/* Motyw */}
+      {/* ── Motyw ── */}
       <div className="space-y-3">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
           Motyw kolorystyczny
@@ -70,7 +79,7 @@ export function DesignPanel({ page, onUpdate, isPro }: DesignPanelProps) {
         </div>
       </div>
 
-      {/* Styl przycisków */}
+      {/* ── Styl przycisków ── */}
       <div className="space-y-3">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
           Styl przycisków
@@ -102,7 +111,7 @@ export function DesignPanel({ page, onUpdate, isPro }: DesignPanelProps) {
         </div>
       </div>
 
-      {/* Czcionka */}
+      {/* ── Czcionka (basic) ── */}
       <div className="space-y-3">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
           Czcionka
@@ -126,7 +135,7 @@ export function DesignPanel({ page, onUpdate, isPro }: DesignPanelProps) {
         </div>
       </div>
 
-      {/* Typ tła */}
+      {/* ── Typ tła ── */}
       <div className="space-y-3">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
           Typ tła
@@ -159,7 +168,7 @@ export function DesignPanel({ page, onUpdate, isPro }: DesignPanelProps) {
         </div>
       </div>
 
-      {/* Kolor tła */}
+      {/* ── Kolor tła (solid) ── */}
       {(!page.bg_type || page.bg_type === 'solid') && (
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
@@ -179,29 +188,66 @@ export function DesignPanel({ page, onUpdate, isPro }: DesignPanelProps) {
         </div>
       )}
 
-      {/* Gradient */}
-      {page.bg_type === 'gradient' && isPro && (
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block">
-            Kolory gradientu
-          </Label>
-          <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={page.gradient_from ?? '#6366f1'}
-              onChange={e => onUpdate({ gradient_from: e.target.value })}
-              className="w-10 h-10 rounded-lg border cursor-pointer"
-            />
-            <span className="text-xs text-muted-foreground">→</span>
-            <input
-              type="color"
-              value={page.gradient_to ?? '#8b5cf6'}
-              onChange={e => onUpdate({ gradient_to: e.target.value })}
-              className="w-10 h-10 rounded-lg border cursor-pointer"
-            />
-          </div>
+      <Separator />
+
+      {/* ════════════════════════════
+          PRO — ZAAWANSOWANE
+      ════════════════════════════ */}
+      <div className="space-y-6">
+
+        {/* Header Pro */}
+        <div className="flex items-center gap-2 py-1">
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-xs font-bold uppercase tracking-widest text-amber-500">
+            Pro — zaawansowane
+          </span>
         </div>
-      )}
+
+        {/* Kolor przycisku */}
+        <ColorPicker
+          label="Kolor przycisków"
+          value={page.button_color ?? null}
+          onChange={color => onUpdate({ button_color: color })}
+          isPro={isPro}
+        />
+
+        {/* Kolor tekstu przycisków */}
+        <ColorPicker
+          label="Tekst przycisków"
+          value={page.button_text_color ?? null}
+          onChange={color => onUpdate({ button_text_color: color })}
+          isPro={isPro}
+        />
+
+        {/* Kolor tekstu strony */}
+        <ColorPicker
+          label="Kolor tekstu"
+          value={page.text_color ?? null}
+          onChange={color => onUpdate({ text_color: color })}
+          isPro={isPro}
+        />
+
+        <Separator className="opacity-50" />
+
+        {/* Gradient */}
+        <GradientBuilder page={page} onUpdate={onUpdate} isPro={isPro} />
+
+        <Separator className="opacity-50" />
+
+        {/* Czcionka Pro */}
+        <FontPicker page={page} onUpdate={onUpdate} isPro={isPro} />
+
+        <Separator className="opacity-50" />
+
+        {/* Animacje */}
+        <AnimationPicker page={page} onUpdate={onUpdate} isPro={isPro} />
+
+        <Separator className="opacity-50" />
+
+        {/* Custom CSS */}
+        <CustomCssEditor page={page} onUpdate={onUpdate} isPro={isPro} />
+
+      </div>
     </div>
   )
 }
