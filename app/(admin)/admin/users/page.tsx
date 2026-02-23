@@ -1,7 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import { redirect }      from 'next/navigation'
-import { AdminUsersClient } from '@/components/admin/AdminUsersClient'
+import { createClient }      from '@/lib/supabase/server'
+import { supabaseAdmin }     from '@/lib/supabase/admin'
+import { redirect }          from 'next/navigation'
+import { AdminUsersClient }  from '@/components/admin/AdminUsersClient'
+import type { UserRow }      from '@/components/admin/AdminUsersClient'
 
 export const metadata = { title: 'Admin — Użytkownicy' }
 
@@ -10,7 +11,6 @@ export default async function AdminUsersPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  /* Sprawdź is_admin przez service role (nie przez RLS) */
   const { data: adminProfile } = await supabaseAdmin
     .from('profiles')
     .select('is_admin')
@@ -19,8 +19,7 @@ export default async function AdminUsersPage() {
 
   if (!adminProfile?.is_admin) redirect('/dashboard')
 
-  /* Pobierz wszystkich użytkowników */
-  const { data: users } = await supabaseAdmin
+  const { data: rawUsers } = await supabaseAdmin
     .from('profiles')
     .select(`
       id, username, full_name, avatar_url, plan, is_admin, created_at,
@@ -30,5 +29,13 @@ export default async function AdminUsersPage() {
     `)
     .order('created_at', { ascending: false })
 
-  return <AdminUsersClient users={users ?? []} />
+  // Supabase zwraca subscriptions jako tablicę — bierzemy pierwszy rekord
+  const users: UserRow[] = (rawUsers ?? []).map(u => ({
+    ...u,
+    subscriptions: Array.isArray(u.subscriptions)
+      ? (u.subscriptions[0] ?? null)
+      : (u.subscriptions ?? null),
+  }))
+
+  return <AdminUsersClient users={users} />
 }
