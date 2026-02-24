@@ -1,66 +1,99 @@
-import { createClient } from '@/lib/supabase/server'
-import { PagePreview } from '@/components/preview/PagePreview'
-import { notFound } from 'next/navigation'
-import type { Metadata } from 'next'
+import { createClient }   from '@/lib/supabase/server'
+import { notFound }       from 'next/navigation'
+import { PublicProfile }  from '@/components/public/PublicProfile'
+import type { Metadata }  from 'next'
 
+/* ─────────────────────────────────────────
+   Types
+───────────────────────────────────────── */
 interface Props {
   params: Promise<{ username: string }>
 }
 
+/* ─────────────────────────────────────────
+   Dynamic metadata
+───────────────────────────────────────── */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params
   const supabase = await createClient()
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, bio, avatar_url')
+    .select('full_name, username, bio, avatar_url')
     .eq('username', username)
     .single()
 
-  if (!profile) return { title: 'Strona nie znaleziona' }
+  if (!profile) {
+    return {
+      title: 'Nie znaleziono użytkownika',
+    }
+  }
 
   return {
-    title: profile.full_name ?? username,
-    description: profile.bio ?? `Strona ${username} na BioLink`,
+    title:       `${profile.full_name ?? profile.username} — BioLink`,
+    description: profile.bio ?? `Sprawdź stronę ${profile.username} na BioLink`,
     openGraph: {
-      images: profile.avatar_url ? [profile.avatar_url] : [],
+      title:       profile.full_name ?? profile.username,
+      description: profile.bio ?? '',
+      images:      profile.avatar_url ? [profile.avatar_url] : [],
+      type:        'profile',
+    },
+    twitter: {
+      card:        'summary',
+      title:       profile.full_name ?? profile.username,
+      description: profile.bio ?? '',
+      images:      profile.avatar_url ? [profile.avatar_url] : [],
     },
   }
 }
 
-export default async function UserPage({ params }: Props) {
+/* ─────────────────────────────────────────
+   Page
+───────────────────────────────────────── */
+export default async function PublicProfilePage({ params }: Props) {
   const { username } = await params
-  const supabase = await createClient()
+  const supabase     = await createClient()
 
+  /* Pobierz profil */
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id')
+    .select(`
+      id,
+      username,
+      full_name,
+      bio,
+      avatar_url,
+      plan,
+      theme,
+      custom_css
+    `)
     .eq('username', username)
     .single()
 
   if (!profile) notFound()
 
-  const { data: page } = await supabase
-    .from('pages')
-    .select('*')
-    .eq('user_id', profile.id)
-    .eq('is_published', true)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single()
-
-  if (!page) notFound()
+  /* Pobierz aktywne bloki (posortowane, widoczne teraz) */
+  const now = new Date().toISOString()
 
   const { data: blocks } = await supabase
     .from('blocks')
     .select('*')
-    .eq('page_id', page.id)
-    .eq('is_active', true)
+    .eq('profile_id', profile.id)
+    .eq('is_visible', true)
+    .or(`scheduled_end.is.null,scheduled_end.gte.${now}`)
+    .or(`scheduled_start.is.null,scheduled_start.lte.${now}`)
     .order('position', { ascending: true })
 
+  /* Zlicz wyświetlenie (fire & forget) */
+  supabase
+    .from('page_views')
+    .insert({ profile_id: profile.id })
+    .then(() => {})
+
   return (
-    <div className="min-h-screen">
-      <PagePreview page={page} blocks={blocks ?? []} />
-    </div>
+    <PublicProfile
+      profile={profile}
+      blocks={blocks ?? []}
+    />
   )
 }
